@@ -10,10 +10,9 @@ const chaiHttp = require("chai-http");
 const chai = require("chai");
 const assert = chai.assert;
 const server = require("../server");
+const ObjectId = require("mongodb").ObjectID;
 
 chai.use(chaiHttp);
-
-let id;
 
 suite("Functional Tests", function () {
   /*
@@ -77,7 +76,7 @@ suite("Functional Tests", function () {
             .post("/api/books")
             .send({})
             .end(function (err, res) {
-              assert.equal(res.body, "{}");
+              assert.equal(res.body.title, undefined);
               done();
             });
         });
@@ -115,12 +114,15 @@ suite("Functional Tests", function () {
 
     suite("GET /api/books/[id] => book object with [id]", function () {
       test("Test GET /api/books/[id] with id not in db", function (done) {
-        //done();
+        const idNotinDb = new ObjectId();
         chai
           .request(server)
-          .get("/api/books/" + "idthatdoesntexist")
+          .get("/api/books/" + idNotinDb.toString())
           .end(function (err, res) {
-            assert.equal(res.body, "no book exists");
+            assert.isAtLeast(res.status, 200);
+            assert.isBelow(res.status, 500);
+            assert.strictEqual(res.error.text, undefined);
+
             done();
           });
       });
@@ -143,22 +145,31 @@ suite("Functional Tests", function () {
       "POST /api/books/[id] => add comment/expect book object with id",
       function () {
         test("Test POST /api/books/[id] with comment", function (done) {
-          //done();
           chai
             .request(server)
-            .post("/api/books/" + id)
-            .send({
-              comment: "test comment",
-            })
+            .post("/api/books")
+            .send({ title: "test title" })
             .end(function (err, res) {
-             
-              assert.isTrue(res.body.comments.includes("test comment"));
+              assert.strictEqual(res.status, 200);
+
+              const savedBook = res.body;
 
               chai
                 .request(server)
-                .delete("/api/books/" + id)
-                .send({})
-                .end(function (err, res) {
+                .post("/api/books/" + savedBook._id)
+                .send({ comment: "test comment" })
+                .end(function (err2, res2) {
+                  assert.strictEqual(res2.status, 200);
+                  assert.isObject(res2.body);
+
+                  const commentedBook = res2.body;
+
+                  assert.strictEqual(savedBook._id, commentedBook._id);
+                  assert.strictEqual(savedBook.title, commentedBook.title);
+                  assert.isArray(commentedBook.comments);
+                  assert.isNotEmpty(commentedBook.comments);
+                  assert.strictEqual(commentedBook.comments[0], "test comment");
+
                   done();
                 });
             });
@@ -166,22 +177,97 @@ suite("Functional Tests", function () {
 
         test("Test POST /api/books/[id] without comment field", function (done) {
           //done();
+          chai
+            .request(server)
+            .post("/api/books")
+            .send({})
+            .end(function (err, res) {
+              assert.equal(res.body.comments, undefined);
+              done();
+            });
         });
 
         test("Test POST /api/books/[id] with comment, id not in db", function (done) {
           //done();
+          const idNotinDb = new ObjectId();
+          chai
+            .request(server)
+            .get("/api/books/" + idNotinDb.toString())
+            .send({ title: "test title" })
+            .end(function (err, res) {
+              assert.isAtLeast(res.status, 200);
+              assert.isBelow(res.status, 500);
+              assert.strictEqual(res.error.text, undefined);
+
+              done();
+            });
+        });
+
+        suite("DELETE /api/books/[id] => delete book object id", function () {
+          test("Test DELETE /api/books/[id] with valid id in db", function (done) {
+            chai
+              .request(server)
+              .post("/api/books")
+              .send({ title: "test title" })
+              .end(function (err, res) {
+                assert.strictEqual(res.status, 200);
+
+                const savedBook = res.body;
+
+                chai
+                  .request(server)
+                  .delete(`/api/books/${savedBook._id}`)
+                  .end(function (err, res) {
+                    assert.strictEqual(res.status, 200);
+                    assert.strictEqual(res.text, "delete successful");
+
+                    chai
+                      .request(server)
+                      .get(`/api/books/${savedBook._id}`)
+                      .end(function (err, res) {
+                        assert.isAtLeast(res.status, 200);
+                        assert.isBelow(res.status, 500);
+                        assert.strictEqual(res.error.text, undefined);
+
+                        done();
+                      });
+                  });
+              });
+
+            test("Test DELETE /api/books/[id] with  id not in db", function (done) {
+              const idNotinDb = new ObjectId();
+              chai
+                .request(server)
+                .post("/api/books" + idNotinDb.toString())
+                .send({ title: "test title" })
+                .end(function (err, res) {
+                  assert.strictEqual(res.status, 200);
+
+                  const savedBook = res.body;
+
+                  chai
+                    .request(server)
+                    .delete(`/api/books/${savedBook._id}`)
+                    .end(function (err, res) {
+                      assert.strictEqual(res.status, 200);
+                      assert.strictEqual(res.text, "delete successful");
+
+                      chai
+                        .request(server)
+                        .get(`/api/books/${savedBook._id}`)
+                        .end(function (err, res) {
+                          assert.isAtLeast(res.status, 200);
+                          assert.isBelow(res.status, 500);
+                          assert.strictEqual(res.error.text, undefined);
+
+                          done();
+                        });
+                    });
+                });
+            });
+          });
         });
       }
     );
-
-    suite("DELETE /api/books/[id] => delete book object id", function () {
-      test("Test DELETE /api/books/[id] with valid id in db", function (done) {
-        //done();
-      });
-
-      test("Test DELETE /api/books/[id] with  id not in db", function (done) {
-        //done();
-      });
-    });
   });
 });

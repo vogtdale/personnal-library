@@ -1,115 +1,114 @@
 /*
-*
-*
-*       Complete the API routing below
-*       
-*       
-*/
+ *
+ *
+ *       Complete the API routing below
+ *
+ *
+ */
 
-'use strict';
+"use strict";
 const mongoose = require("mongoose");
 const { Book } = require("../models");
-const BookModel = require("../models").Book
+const BookModel = require("../models").Book;
 const ObjectId = mongoose.Types.ObjectId;
 
-
-
 module.exports = function (app) {
-
-  app.route('/api/books')
-    .get(function (req, res){
+  app
+    .route("/api/books")
+    .get(function (req, res) {
       //response will be array of book objects
       //json res format: [{"_id": bookid, "title": book_title, "commentcount": num_of_comments },...]
-      let arrayOfBooks = []
+      let arrayOfBooks = [];
 
       Book.find({}, (err, data) => {
         if (!err && data) {
           data.forEach((result) => {
-            let book = result.toJSON()
-            book["commentcount"] = book.comments.length
-            arrayOfBooks.push(book)
-          })
-          return res.json(arrayOfBooks)
+            let book = result.toJSON();
+            book["commentcount"] = book.comments.length;
+            arrayOfBooks.push(book);
+          });
+          return res.json(arrayOfBooks);
         }
-      })
+      });
     })
-    
-    .post(function (req, res){
+
+    .post(function (req, res) {
       let title = req.body.title;
 
       if (!title) {
-        res.send("missing required field title")
+        res.send("missing required field title");
       }
       //response will contain new book object including atleast _id and title
 
       let newBook = new Book({
         title: title,
-        comments: []
-      })
+        comments: [],
+      });
 
       newBook.save((err, data) => {
         if (!err && data) {
-          res.json(data)
+          res.json(data);
         }
-      })
+      });
     })
-    
-    .delete(function(req, res){
+
+    .delete(function (req, res) {
       //if successful response will be 'complete delete successful'
-      Book.remove({}, (err, data) => {
-        if(!err && data) {
-          res.send("complete delete successful")
+      Book.deleteMany({}, (err, data) => {
+        if (!err && data) {
+          res.send("complete delete successful");
         }
-      })
+      });
     });
 
-
-
-  app.route('/api/books/:id')
-    .get(function (req, res){
+  app
+    .route("/api/books/:id")
+    .get(function (req, res) {
       let bookid = req.params.id;
       //json res format: {"_id": bookid, "title": book_title, "comments": [comment,comment,...]}
 
       Book.findById(bookid, (err, data) => {
         if (!err && data) {
-          res.send(data)
-        }else if(!data) {
-          return res.send("no book exists")
+          res.send(data);
+        } else if (!data) {
+          return res.send("no book exists");
         }
-      })
+      });
     })
-    
-    .post(function(req, res){
+
+    .post(function (req, res) {
       let bookid = req.params.id;
-      let {comment, title} = req.body;
+      let { comment } = req.body;
       //json res format same as .get
 
-      if (!comment) {
-        return res.send("`missing required field comment`")
-      }
-
-      Book.findOneAndUpdate(bookid,{$push: {comments: comment}}, (err,data) => {
+      Book.findById(bookid, (error, data) => {
         if (!data) {
-          return res.send("no book exists")
-          
-        }else {
-            return res.json(data)
-          
+          return res.json("no book exists");
+        } else {
+          if (!comment) {
+            return res.send("missing required field comment");
+          }else {
+            data.comments.push(comment)
+            data.save((err, data) => {
+              if (!err && data) {
+                res.json(data)
+              }
+            })
+          }
         }
-      })
+      });
     })
-    
-    .delete(function(req, res){
+
+    .delete(function (req, res) {
       let bookid = req.params.id;
       //if successful response will be 'delete successful'
 
       Book.findByIdAndDelete(bookid, (err, data) => {
         if (!err && data) {
-          res.send("delete successful")
-        }else if(!data) {
-          return res.send("no book exists")
+          res.send("delete successful");
+        } else if (!data) {
+          return res.send("no book exists");
         }
-      })
+      });
     });
-  
 };
